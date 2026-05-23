@@ -1,0 +1,361 @@
+esphome:
+  name: eventbus-test
+  platformio_options:
+    # RTTI isn't available on embedded platforms, so make sure we compile
+    # without support for it to make sure no tests depend on it.
+    build_flags: '-fno-rtti'
+  on_boot:
+    # fill data from map
+    - eventbus.emit:
+        event: data-from-map
+        data:
+          str: 'string'
+          stdstr: 'string'
+          # these will all be strings under the hood
+          num: 123
+          numstr: 123
+          flt: 123.456
+          fltstr: 123.456
+          bool: 'true'
+
+    # fill data from map with lambdas
+    - eventbus.emit:
+        event: data-from-lambda-map
+        data:
+          str: !lambda 'return "string";'
+          stdstr: !lambda 'return std::string("string");'
+          num: !lambda 'return 123;'
+          numstr: !lambda 'return "123";'
+          flt: !lambda 'return 123.456F;'
+          fltstr: !lambda 'return "123.456";'
+          bool: !lambda 'return true;'
+
+    # fill data from lambda
+    - eventbus.emit:
+        event: data-from-lambda
+        data: !lambda |-
+          data["str"] = "string";
+          data["stdstr"] = std::string("string");
+          data["num"] = 123;
+          data["numstr"] = "123";
+          data["flt"] = 123.456F;
+          data["fltstr"] = "123.456";
+          data["bool"] = true;
+
+    # emit programmatically
+    - lambda: |-
+        id(ev).emit("emit-from-lambda",
+          "str", "string",
+          "stdstr", std::string("string"),
+          "num", 123,
+          "numstr", "123",
+          "flt", 123.456F,
+          "fltstr", "123.456",
+          "bool", true
+        );
+
+    # emit JSON document
+    - eventbus.emit:
+        event: data-with-json
+        data: !lambda |-
+          {
+            JsonDocument doc;
+            deserializeJson(doc, "\"string\"");
+            data["string-doc"] = doc;
+          }
+          {
+            JsonDocument doc;
+            deserializeJson(doc, "{\"str\":\"string\",\"num\":123,\"bool\":true}");
+            data["json-doc"] = doc;
+          }
+
+    # emit std container
+    - eventbus.emit:
+        event: data-with-std-container
+        data: !lambda |-
+          std::vector<int> vec = { 123, 456 };
+          data["container"] = vec;
+
+    # string parsing
+    - eventbus.emit:
+        event: data-with-stringified-types
+        data: !lambda |-
+          // booleans
+          data["bool1"] = "TRUE";
+          data["bool2"] = "FALSE";
+          data["bool3"] = "TrUe";
+          data["bool4"] = "FaLsE";
+          data["bool5"] = "1";
+          data["bool6"] = "0";
+          data["bool7"] = "123";
+          data["bool8"] = "000";
+          data["bool9"] = "true-ish";
+          data["bool10"] = "false-ish";
+          // TODO: integral/fp
+
+    # falsy values
+    - eventbus.emit:
+        event: data-with-falsy-values
+        data: !lambda |-
+          data["str"] = "";
+          data["num"] = 0;
+          data["numstr"] = "0";
+          data["flt"] = 0.0f;
+          data["fltstr"] = "0.0";
+
+    # see below for rationale
+    - text.set:
+        id: mytext
+        value: "string"
+
+    # done
+    - lambda: |-
+        ESP_LOGW("", "All tests completed!");
+        exit(0);
+
+# enable JSON support
+json:
+
+# run on host platform
+host:
+
+# enable debug logging
+logger:
+  level: WARN
+
+# load component
+external_components:
+  - source:
+      type: local
+      path: components
+
+# create event bus
+eventbus:
+  id: ev
+  on_event:
+    - any:
+      then:
+        lambda: |-
+          ESP_LOGW("", "Running testcase '%s'...", event.c_str());
+
+    # validate test cases
+    - event:
+        - data-from-map
+        - data-from-lambda-map
+        - emit-from-lambda
+        - data-from-lambda
+      then:
+        lambda: |-
+          {
+            std::string str = data["str"];
+            assert(str == "string");
+          }
+          {
+            auto str = data["str"].as<std::string>();
+            assert(str == "string");
+          }
+          {
+            std::string str = data["missing"];
+            assert(str == "");
+          }
+          {
+            std::string str = data["missing"] | "fallback";
+            assert(str == "fallback");
+          }
+          {
+            const char* str = data["str"];
+            assert(! strcmp(str, "string"));
+          }
+          {
+            auto str = data["str"].as<const char*>();
+            assert(! strcmp(str, "string"));
+          }
+          {
+            const char* str = data["missing"];
+            assert(str == nullptr);
+          }
+          {
+            const char* str = data["missing"] | "fallback";
+            assert(! strcmp(str, "fallback"));
+          }
+          {
+            std::string str = data["stdstr"];
+            assert(str == "string");
+          }
+          {
+            unsigned int num = data["num"];
+            assert(num == 123);
+          }
+          {
+            auto num = data["num"].as<unsigned int>();
+            assert(num == 123);
+          }
+          {
+            std::string num = data["num"];
+            assert(num == "123");
+          }
+          {
+            unsigned int num = data["missing"];
+            assert(num == 0);
+          }
+          {
+            unsigned int num = data["missing"] | 456;
+            assert(num == 456);
+          }
+          {
+            // cast to different type
+            long num = data["num"];
+            assert(num == 123);
+          }
+          {
+            unsigned int num = data["numstr"];
+            assert(num == 123);
+          }
+          {
+            float flt = data["flt"];
+            assert(flt == 123.456F);
+          }
+          {
+            auto flt = data["flt"].as<float>();
+            assert(flt == 123.456F);
+          }
+          {
+            std::string flt = data["flt"];
+            assert(flt.rfind("123.456", 0) == 0);
+          }
+          {
+            float flt = data["missing"];
+            assert(flt == 0.0F);
+          }
+          {
+            float flt = data["missing"] | 456.789F;
+            assert(flt == 456.789F);
+          }
+          {
+            float flt = data["fltstr"];
+            assert(flt == 123.456F);
+          }
+          {
+            bool b = data["bool"];
+            assert(b == true);
+          }
+          {
+            auto b = data["bool"].as<bool>();
+            assert(b == true);
+          }
+          {
+            bool b = data["missing"];
+            assert(b == false);
+          }
+          {
+            bool b = data["missing"] | true;
+            assert(b == true);
+          }
+          ESP_LOGW("", "Success");
+
+    - event: data-with-json
+      then:
+        lambda: |-
+          {
+            JsonDocument doc = data["string-doc"];
+            assert(! doc.isNull() );
+            assert( doc.as<std::string>() == "string");
+          }
+          {
+            auto doc = data["string-doc"].as<JsonDocument>();
+            assert(! doc.isNull() );
+            assert( doc.as<std::string>() == "string");
+          }
+          {
+            JsonDocument doc = data["missing"];
+            assert( doc.isNull() );
+          }
+          {
+            JsonDocument doc = data["json-doc"];
+            assert(! doc.isNull() );
+            assert( doc["str"].as<std::string>() == "string");
+            assert( doc["num"].as<unsigned int>() == 123);
+            assert( doc["num"].as<bool>() == true);
+          }
+          ESP_LOGW("", "Success");
+
+    - event: data-with-std-container
+      then:
+        lambda: |-
+          {
+            std::vector<int> vec = data["container"];
+            assert(vec.size() == 2);
+            assert(vec[0] == 123);
+            assert(vec[1] == 456);
+          }
+          {
+            auto vec = data["container"].as<std::vector<int>>();
+            assert(vec.size() == 2);
+            assert(vec[0] == 123);
+            assert(vec[1] == 456);
+          }
+          {
+            std::vector<int> vec = data["missing"];
+            assert(vec.size() == 0);
+          }
+          {
+            std::vector<int> vec = data["missing"] | std::vector<int>({ 123, 456 });
+            assert(vec.size() == 2);
+            assert(vec[0] == 123);
+            assert(vec[1] == 456);
+          }
+          ESP_LOGW("", "Success");
+
+    - event: data-with-stringified-types
+      then:
+        lambda: |-
+          assert(data["bool1"].as<bool>() == true);
+          assert(data["bool2"].as<bool>() == false);
+          assert(data["bool3"].as<bool>() == true);
+          assert(data["bool4"].as<bool>() == false);
+          assert(data["bool5"].as<bool>() == true);
+          assert(data["bool6"].as<bool>() == false);
+          assert(data["bool7"].as<bool>() == true);
+          assert(data["bool8"].as<bool>() == false);
+          assert(data["bool9"].as<bool>() == true);
+          assert(data["bool10"].as<bool>() == false);
+          ESP_LOGW("", "Success");
+
+    - event: data-with-falsy-values
+      then:
+        lambda: |-
+          // make sure falsy values don't mess with explicit boolean cast (existence check)
+          assert(data["str"]);
+          assert(data["num"]);
+          assert(data["numstr"]);
+          assert(data["flt"]);
+          assert(data["fltstr"]);
+          assert(! data["missing"]);
+
+    - event:
+        - nested-arguments
+        - nested-arguments-data-lambda
+      then:
+        lambda: |-
+          {
+            std::string str = data["str"];
+            assert(str == "string");
+          }
+          ESP_LOGW("", "Success");
+
+# this component is here to test nested arguments (in this case `x`) being passed in
+text:
+  - platform: template
+    id: mytext
+    optimistic: true
+    mode: text
+    on_value:
+      then:
+        - eventbus.emit:
+            event: nested-arguments
+            data:
+              str: !lambda 'return x;'
+        - eventbus.emit:
+            event: nested-arguments-data-lambda
+            data: !lambda |-
+              data["str"] = x;
