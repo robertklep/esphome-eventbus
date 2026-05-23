@@ -35,6 +35,8 @@ eventbus.emit:
     admin: 'false'
 ```
 
+So you emit an event, `my_event` in this case, with some (optional) data.
+
 You can use lambdas for individual fields:
 ```yaml
 eventbus.emit:
@@ -64,7 +66,19 @@ id(ev).emit("my_event",
   "admin", false
 );
 ```
-Note how `ev` refers to the `id` in the `eventbus` component setup. There's also a global variable that you can always use: `esphome::eventbus::global_eventbus->emit(...)`
+
+Note how `ev` refers to the `id` in the `eventbus` component setup. There's also a global variable that you can always use:
+```c++
+esphome::eventbus::global_eventbus->emit("my_event", ...);
+```
+
+As said, data is optional:
+```yaml
+eventbus.emit: my_event
+```
+```c++
+id(ev).emit("my_event");
+```
 
 ## Side note about `data`
 
@@ -176,7 +190,7 @@ if (data["somekey"].exists()) {
 }
 ```
 
-Possible pitfall: if `data["somekey"]` is a boolean, and you want to continue when it's true, you need to use a cast first:
+Possible pitfall: if `data["somekey"]` is a boolean, and you want to use its value in a conditional statement, you need to use a cast first:
 ```c++
 if (data["somekey"].as<bool>()) {
   ...
@@ -235,6 +249,20 @@ eventbus:
             unsigned int age = data["age"];
             ESP_LOGE("", "- age = %u", age);
           }
+```
+
+```yaml
+eventbus:
+  on_event:
+    - event:
+        - my_event
+        - my_other_event
+      then:
+        if:
+          condition:
+            lambda: 'return event == "my_event";'
+          then:
+            ...
 ```
 
 ## Rationale
