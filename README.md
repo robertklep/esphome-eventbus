@@ -99,13 +99,13 @@ auto admin = data["admin"].as<bool>();
 
 Common C++ types will return a reasonable default value if you try to access a key that doesn't exist.
 
-| Type                                         | Default value     |
-| -------------------------------------------- | ----------------- |
-| Integral types (`short`, `int`, `long`, etc) | 0                 |
-| Floating point types (`float`, `double`)     | 0                 |
-| `std:string`                                 | "" (empty string) |
-| `const char*`                                | nullptr           |
-| `bool`                                       | false             |
+| Type                                         | Default value       |
+| -------------------------------------------- | ------------------- |
+| Integral types (`short`, `int`, `long`, etc) | `0`                 |
+| Floating point types (`float`, `double`)     | `0`                 |
+| `std:string`                                 | `""` (empty string) |
+| `const char*`                                | `nullptr`           |
+| `bool`                                       | `false`             |
 
 Assign the default for an `unsigned int` (0) to `value`:
 ```c++
