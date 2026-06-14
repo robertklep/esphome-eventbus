@@ -12,7 +12,7 @@ Add the following to your project's YAML:
 
 ```yaml
 external_components:
-  - source: github://robertklep/esphome-eventbus@1.0.0
+  - source: github://robertklep/esphome-eventbus@v1.0.0
     components: [ eventbus ]
     refresh: never
 
